@@ -29,14 +29,15 @@ async def on_voice_state_update(member, before, after):
 
 async def expand_voice_channels(member, before, after):
 	# if user left channel
-	if after.channel is None:
+	if not(before.channel is None):
 		debug_expand("*User left channel %s" % before.channel.name)
-		await user_left_channel(member, before)
+		await user_left_channel(member, before, after)
 		return
 
 	# if user joined channel
-	debug_expand("*User joined channel %s" % after.channel.name)
-	await user_joined_channel(member, before, after)
+	if not(after.channel is None):
+		debug_expand("*User joined channel %s" % after.channel.name)
+		await user_joined_channel(member, before, after)
 
 
 async def user_joined_channel(member, before, after):
@@ -68,41 +69,47 @@ async def user_joined_expandable_channel(member, before, after, expandable):
 			expandable_channels.append(expandable.nxt)
 			expandable.print()
 			expandable.nxt.print()
-
-		# TODO: expandables must contain other expandables, not raw channels
 	else:
 		debug_expand("--there is already an expansion of this channel")
 
 
-async def user_left_channel(member, before):
+async def user_left_channel(member, before, after):
 	x = find_expandable_channel(before.channel.name)
 	if x is None:
 		debug_expand("--channel is not expandable")
 		return
 	else:
 		debug_expand("--channel is expandable")
-		await user_left_expandable_channel(member, before, x)
+		await user_left_expandable_channel(member, before, after, x)
 
 
-async def user_left_expandable_channel(member, before, x):
+async def user_left_expandable_channel(member, before, after, x):
 	if len(before.channel.members) <= 0:  # if the channel is now empty
 		debug_expand("--channel is empty")
 		if x.nxt is None:  # and if it's the last channel in the chain
 			debug_expand("--channel is last in chain")
 			if not(x.previous is None):  # and if it's not the first one
 				debug_expand("--channel is not origin")
-				await before.channel.delete()
-				return
-			# else
-			debug_expand("--channel is origin")
+				if len(find_voice_channel(after.channel.guild, x.previous.get_name()).members) <= 0:
+					debug_expand("--previous channel is empty, deleting...")
+					x.clear_others() # TODO: make it so that the next channel becomes this one
+					expandable_channels.remove(x)
+					await before.channel.delete()
+					return
+			else:
+				debug_expand("--channel is origin")
 		else:
-			# TODO: this block is unecessary. could keep as safeguard.
-			debug_expand("--channel is not last in chain")
-			nxt = find_voice_channel(member.guild, x.nxt.name)
-			if len(nxt.members) <= 0 and not(x.previous is None):
-				await before.channel.delete()
-				x.previous.nxt = None
-				expandable_channels.remove(x)
+			if x.previous is None: # if it's the origin
+				next_channel = find_voice_channel(member.guild, x.nxt.get_name())
+				if len(next_channel.members) <= 0: # if the next channel is empty
+					await delete_expandable_channel(x.nxt, next_channel)
+			else:
+				debug_expand("--channel is not last in chain")
+				nxt = find_voice_channel(member.guild, x.nxt.current.name)
+				if len(nxt.members) <= 0 and not(x.previous is None):
+					await before.channel.delete()
+					x.previous.nxt = None
+					expandable_channels.remove(x)
 
 
 def find_voice_channel(guild: discord.guild, name):
@@ -139,7 +146,8 @@ class Expandable_Channel:
 
 	def clear_others(self):
 		self.previous.nxt = None
-		self.nxt.previous = None
+		if not(self.nxt is None):
+			self.nxt.previous = None
 
 	def print(self):
 		print("--*expandable channel '%s'" % self.current.name)
@@ -157,6 +165,11 @@ class Expandable_Channel:
 			print("----next channel is None")
 		else:
 			print("----next channel is: '%s'" % self.nxt.current.name)
+
+async def delete_expandable_channel(expandable, real_channel):
+	expandable_channels.remove(expandable)
+	expandable.clear_others()
+	await real_channel.delete()
 
 def debug_expand(str):
 	print(str)
