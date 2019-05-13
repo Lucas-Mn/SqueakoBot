@@ -3,7 +3,7 @@ from discord.ext import commands
 import discord.voice_client
 
 
-TOKEN = '*'
+TOKEN = 'MzkxMDI3MTYyMzYwMDUzNzcz.XNlxlQ.OxF6ufGpT0Wt5xWMfs6RSW4qydM'
 bot = commands.Bot(command_prefix='!')
 
 
@@ -59,8 +59,7 @@ async def user_joined_expandable_channel(member, before, after, expandable):
 			new_channel_name = '{0} 2'.format(after.channel.name)
 		elif expandable.previous_is_not_empty():
 			debug_expand("--channel is not origin")
-			new_channel_name = '{0} 3'.format(after.channel.name)
-			# TODO Placeholder, must make dynamic
+			new_channel_name = clean_channel_name(after.channel.name) + (' %s' % (expandable.get_index() + 2))
 		# if all is good, create channel
 		if not(new_channel_name is None):
 			debug_expand("--new channel created")
@@ -90,9 +89,9 @@ async def user_left_expandable_channel(member, before, after, x):
 			debug_expand("--channel is last in chain")
 			if not(x.previous is None):  # and if it's not the first one
 				debug_expand("--channel is not origin")
-				if len(find_voice_channel(after.channel.guild, x.previous.get_name()).members) <= 0:
+				if after.channel is None or len(find_voice_channel(after.channel.guild, x.previous.get_name()).members) <= 0:
 					debug_expand("--previous channel is empty, deleting...")
-					x.clear_others() # TODO: make it so that the next channel becomes this one
+					x.clear_others()  # TODO: make it so that the next channel becomes this one
 					expandable_channels.remove(x)
 					await before.channel.delete()
 					return
@@ -153,6 +152,7 @@ class Expandable_Channel:
 		print("--*expandable channel '%s'" % self.current.name)
 		self.print_previous()
 		self.print_nxt()
+		print("----index: %s" % self.get_index())
 
 	def print_previous(self):
 		if self.previous is None:
@@ -166,10 +166,34 @@ class Expandable_Channel:
 		else:
 			print("----next channel is: '%s'" % self.nxt.current.name)
 
+	def get_index(self):
+		if self.previous is None:
+			return 0
+		return self.previous.get_index() + 1
+
+
+def clean_channel_name(str):
+	string_index = None
+	index = len(str)-1
+	loop_count = 0  # this will ensure we're not iterating unnecessarily on a bad string
+	while index >= 0:
+		if str[index] == " ":
+			string_index = index
+			break
+		else:
+			index -= 1
+			loop_count += 1
+			if loop_count > 2:
+				print("TRIED TO CLEAN INVALID CHANNEL NAME")
+				break
+	return str[:string_index]
+
+
 async def delete_expandable_channel(expandable, real_channel):
 	expandable_channels.remove(expandable)
 	expandable.clear_others()
 	await real_channel.delete()
+
 
 def debug_expand(str):
 	print(str)
