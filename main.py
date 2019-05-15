@@ -13,6 +13,11 @@ async def add_expandable_channel(ctx, channel_name):
 	await expand.add_expandable_channel(ctx, channel_name)
 
 
+@bot.command()
+async def t(ctx, channel_name):
+	await expand.add_expandable_channel(ctx, channel_name)
+
+
 @bot.event
 async def on_ready():
 	print("Bot is ready.")
