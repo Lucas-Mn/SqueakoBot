@@ -3,10 +3,11 @@ import discord.voice_client
 
 
 class Expandable_Channel:
-	def __init__(self, current, previous=None):
+	def __init__(self, current, guild_id, previous=None):
 		self.previous = previous
 		self.current = current
 		self.nxt = None
+		self.guild_id = guild_id
 
 	def get_name(self):
 		return self.current.name
@@ -46,16 +47,16 @@ class Expandable_Channel:
 		return self.previous.get_index() + 1
 
 async def add_expandable_channel(ctx, channel_name):
-	xt = Expandable_Channel(find_voice_channel(ctx.guild, channel_name))
+	xt = Expandable_Channel(find_voice_channel(ctx.guild, channel_name), ctx.guild.id)
 	if xt is None:
 		await ctx.send("Channel {0} does not exist.".format(channel_name))
 	else:
-		expandable_channels.append(xt)
+		add_expandable_to_dict(xt)
 		await ctx.send("{0} is now expandable.".format(channel_name))
 
 
 async def user_joined_channel(member, before, after):
-	x = find_expandable_channel(after.channel.name)
+	x = find_expandable_channel(after.channel.name, after.channel.guild)
 	if x is None:
 		debug_expand("--joined channel is not expandable")
 		return
@@ -65,7 +66,7 @@ async def user_joined_channel(member, before, after):
 
 
 async def user_left_channel(member, before, after):
-	x = find_expandable_channel(before.channel.name)
+	x = find_expandable_channel(before.channel.name, before.channel.guild)
 	if x is None:
 		debug_expand("--channel is not expandable")
 		return
@@ -89,8 +90,8 @@ async def user_joined_expandable_channel(member, before, after, expandable):
 			await after.channel.guild.create_voice_channel(new_channel_name, category=after.channel.category)
 			channel = find_voice_channel(after.channel.guild, new_channel_name)
 			await channel.edit(position=after.channel.position+1)
-			expandable.nxt = Expandable_Channel(channel, expandable)
-			expandable_channels.append(expandable.nxt)
+			expandable.nxt = Expandable_Channel(channel, expandable.guild_id, expandable)
+			add_expandable_to_dict(expandable.nxt)  # NOTE: could skip duplication check
 			debug_expand("--new channel created")
 	else:
 		debug_expand("--there is already an expansion of this channel")
@@ -108,7 +109,7 @@ async def user_left_expandable_channel(member, before, after, x):
 				if after.channel is None or len(find_voice_channel(after.channel.guild, x.previous.get_name()).members) <= 0:
 					debug_expand("--previous channel is empty, deleting...")
 					x.clear_others()  # TODO: make it so that the next channel becomes this one
-					expandable_channels.remove(x)
+					guilds[before.channel.guild.id].remove(x)
 					await before.channel.delete()
 			else:
 				debug_expand("--channel is origin")
@@ -125,7 +126,7 @@ async def user_left_expandable_channel(member, before, after, x):
 				nxt = find_voice_channel(member.guild, x.nxt.current.name)
 				if len(nxt.members) <= 0:  # if next channel is empty
 					await nxt.delete()
-					expandable_channels.remove(x.nxt)
+					guilds[before.channel.guild.id].remove(x.nxt)
 					x.nxt = None
 					debug_expand("--next channel was empty, so it was deleted")
 				else:  # if next channel has people
@@ -135,7 +136,7 @@ async def user_left_expandable_channel(member, before, after, x):
 					x_nxt = x.nxt
 					x_prev.nxt = x_nxt
 					x_nxt.previous = x_prev
-					expandable_channels.remove(x)
+					guilds[before.channel.guild.id].remove(x)
 
 					# delete channel and update next
 					await before.channel.delete()
@@ -149,19 +150,35 @@ def find_voice_channel(guild: discord.guild, name):
 	return None
 
 
-def find_expandable_channel(name):
-	for x in expandable_channels:
+def find_expandable_channel(name, guild):
+	for x in guilds[guild.id]:
 		if x.get_name() == name:
 			return x
 	return None
 
 
-expandable_channels = []
+# key: guild ID | value: a list of expandable channels
+guilds = dict()
+
+
+def add_expandable_to_dict(expandable):
+	id = expandable.guild_id
+	if id in guilds:
+		# check that channel doesn't already exist
+		for x in guilds[id]:
+			if x.get_name() == expandable.get_name():
+				debug_expand("tried to add %s to dictionary, but it already exists" % expandable.get_name())
+				return
+		guilds[id].append(expandable)
+	else:
+		guilds[id] = [expandable]
 
 
 def print_all_expandables():
-	for x in expandable_channels:
-		x.print()
+	for g in guilds:
+		print("Guild %s expandables: " % g)
+		for x in guilds[g]:
+			x.print()
 
 
 def clean_channel_name(str):
@@ -186,7 +203,7 @@ def remake_channel_name(str, expandable):
 
 
 async def delete_expandable_channel(expandable, real_channel):
-	expandable_channels.remove(expandable)
+	guilds[expandable.guild_id].remove(expandable)
 	expandable.clear_others()
 	await real_channel.delete()
 
