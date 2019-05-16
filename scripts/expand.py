@@ -102,7 +102,7 @@ async def user_joined_expandable_channel(member, before, after, expandable):
 async def user_left_expandable_channel(member, before, after, x):
 	if len(before.channel.members) <= 0:  # if the channel is now empty
 		debug_expand("--channel is empty")
-		if x.nxt is None:  # and if it's the last channel in the chain
+		if x.nxt is None:  # TODO: this should never happen - and if it's the last channel in the chain
 			debug_expand("--channel is last in chain")
 			if not(x.previous is None):  # and if it's not the first one
 				debug_expand("--channel is not origin")
@@ -121,6 +121,7 @@ async def user_left_expandable_channel(member, before, after, x):
 				if len(next_channel.members) <= 0: # if the next channel is empty
 					await delete_expandable_channel(x.nxt, next_channel)
 					debug_expand("--next channel was empty, so it was deleted")
+					# TODO: delete channel and replace with next, if next is not empty
 			else:
 				debug_expand("--channel is not origin")
 				nxt = find_voice_channel(member.guild, x.nxt.current.name)
@@ -192,7 +193,7 @@ def clean_channel_name(str):
 		else:
 			index -= 1
 			loop_count += 1
-			if loop_count > 2:
+			if loop_count > 3:
 				print("TRIED TO CLEAN INVALID CHANNEL NAME")
 				break
 	return str[:string_index]
