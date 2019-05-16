@@ -1,10 +1,14 @@
 from discord.ext import commands
 import discord.voice_client
-from scripts import expand
+from scripts import expand, config
 
 
 token_file = open("token.txt", "r")
 TOKEN = token_file.read()
+
+config.load()
+config.add_value('534763576567', 'expandable', 'Guardado')
+config.save()
 
 bot = commands.Bot(command_prefix='!')
 
