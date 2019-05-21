@@ -16,7 +16,7 @@ class Expandable_Channel:
 		return len(self.previous.get_members()) > 0
 
 	def get_members(self):
-		return find_voice_channel(bot.get_guild(self.guild_id), self.name).members # TODO: get actual number
+		return find_voice_channel(bot.get_guild(self.guild_id), self.name).members  # TODO: get actual number
 
 	def clear_others(self):
 		self.previous.nxt = None
@@ -59,6 +59,7 @@ async def user_joined_channel(member, before, after):
 	x = find_expandable_channel(after.channel.name, after.channel.guild)
 	if x is None:
 		debug_expand("--joined channel is not expandable")
+		print_all_expandables()
 		return
 	else:
 		debug_expand("--joined channel is expandable")
@@ -84,12 +85,15 @@ async def user_joined_expandable_channel(member, before, after, expandable):
 			new_channel_name = '{0} 2'.format(after.channel.name)
 		elif expandable.previous_is_not_empty():  # TODO: this is probably unnecessary
 			debug_expand("--channel is not origin")
-			new_channel_name = remake_channel_name(after.channel.name, expandable)
+			new_channel_name = remake_channel_name(after.channel.name, expandable.get_index() + 1)
 		# if all is good, create channel
 		if not(new_channel_name is None):
 			await after.channel.guild.create_voice_channel(new_channel_name, category=after.channel.category)
 			channel = find_voice_channel(after.channel.guild, new_channel_name)
-			await channel.edit(position=after.channel.position+1)
+			try:
+				await channel.edit(position=after.channel.position+1)
+			except:
+				print('tried to move new channel but got an error')
 			expandable.nxt = Expandable_Channel(channel.name, expandable.guild_id, expandable)
 			add_expandable_to_dict(expandable.nxt)  # NOTE: could skip duplication check
 			debug_expand("--new channel created")
@@ -137,12 +141,14 @@ async def user_left_expandable_channel(member, before, after, x):
 					x_nxt = x.nxt
 					x_prev.nxt = x_nxt
 					x_nxt.previous = x_prev
+					x_nxt.name = remake_channel_name(x_nxt.name, x_nxt.get_index())
 					guilds[before.channel.guild.id].remove(x)
 
 					# delete channel and update next
 					await before.channel.delete()
-					await nxt.edit(name=remake_channel_name(nxt.name, x_nxt))
-	#print_all_expandables()
+					await nxt.edit(name=remake_channel_name(nxt.name, x_nxt.get_index()))
+					print('deleted middle channel and bound surrounding channels')
+	print_all_expandables()
 
 def find_voice_channel(guild: discord.guild, name):
 	for x in guild.voice_channels:
@@ -202,8 +208,8 @@ def clean_channel_name(str):
 	return str[:string_index]
 
 
-def remake_channel_name(str, expandable):
-	return clean_channel_name(str) + (' %s' % (expandable.get_index() + 2))
+def remake_channel_name(str, index):
+	return clean_channel_name(str) + (' %s' % (index + 1))
 
 
 async def delete_expandable_channel(expandable, real_channel):
