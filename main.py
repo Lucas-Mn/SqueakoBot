@@ -6,11 +6,9 @@ from scripts import expand, config
 token_file = open("token.txt", "r")
 TOKEN = token_file.read()
 
-config.load()
-config.add_value('534763576567', 'expandable', 'Guardado')
-config.save()
 
 bot = commands.Bot(command_prefix='!')
+expand.bot = bot
 
 @bot.command()
 async def add_expandable_channel(ctx, channel_name):
@@ -22,8 +20,17 @@ async def t(ctx, channel_name):
 	await expand.add_expandable_channel(ctx, channel_name)
 
 
+@bot.command()
+async def s(ctx):
+	await expand.test(ctx.guild.id)
+	expand.save_config()
+	config.print_settings()
+
+
 @bot.event
 async def on_ready():
+	config.load()
+	await expand.load_config()
 	print("Bot is ready.")
 
 

@@ -43,11 +43,15 @@ def save():
 
 
 def add_value(guild, key, value):
-    x = guilds[guild][key]
-    if x is None:
-        guilds[guild][key]=[value]
+    if guild in guilds:
+        x = guilds[guild][key]
+        if x is None:
+            guilds[guild][key] = {value}
+        else:
+            x.append(value)
     else:
-        x.append(value)
+        guilds[guild] = dict()
+        guilds[guild][key] = {value}
 
 
 def print_settings():

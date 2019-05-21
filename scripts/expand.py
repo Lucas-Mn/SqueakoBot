@@ -1,22 +1,22 @@
 from discord.ext import commands
 import discord.voice_client
-
+from scripts import config
 
 class Expandable_Channel:
-	def __init__(self, current, guild_id, previous=None):
+	def __init__(self, name, guild_id, previous=None, nxt=None):
 		self.previous = previous
-		self.current = current
-		self.nxt = None
+		self.name = name
+		self.nxt = nxt
 		self.guild_id = guild_id
 
 	def get_name(self):
-		return self.current.name
+		return self.name
 
 	def previous_is_not_empty(self):
 		return len(self.previous.get_members()) > 0
 
 	def get_members(self):
-		return self.current.members
+		return find_voice_channel(bot.get_guild(self.guild_id), self.name).members # TODO: get actual number
 
 	def clear_others(self):
 		self.previous.nxt = None
@@ -24,7 +24,7 @@ class Expandable_Channel:
 			self.nxt.previous = None
 
 	def print(self):
-		print("--*expandable channel '%s'" % self.current.name)
+		print("--*expandable channel '%s'" % self.name)
 		self.print_previous()
 		self.print_nxt()
 		print("----index: %s" % self.get_index())
@@ -33,13 +33,13 @@ class Expandable_Channel:
 		if self.previous is None:
 			print("----previous channel is None")
 		else:
-			print("----previous channel is: '%s'" % self.previous.current.name)
+			print("----previous channel is: '%s'" % self.previous.name)
 
 	def print_nxt(self):
 		if self.nxt is None:
 			print("----next channel is None")
 		else:
-			print("----next channel is: '%s'" % self.nxt.current.name)
+			print("----next channel is: '%s'" % self.nxt.name)
 
 	def get_index(self):
 		if self.previous is None:
@@ -47,7 +47,7 @@ class Expandable_Channel:
 		return self.previous.get_index() + 1
 
 async def add_expandable_channel(ctx, channel_name):
-	xt = Expandable_Channel(find_voice_channel(ctx.guild, channel_name), ctx.guild.id)
+	xt = Expandable_Channel(channel_name, ctx.guild.id)
 	if xt is None:
 		await ctx.send("Channel {0} does not exist.".format(channel_name))
 	else:
@@ -90,7 +90,7 @@ async def user_joined_expandable_channel(member, before, after, expandable):
 			await after.channel.guild.create_voice_channel(new_channel_name, category=after.channel.category)
 			channel = find_voice_channel(after.channel.guild, new_channel_name)
 			await channel.edit(position=after.channel.position+1)
-			expandable.nxt = Expandable_Channel(channel, expandable.guild_id, expandable)
+			expandable.nxt = Expandable_Channel(channel.name, expandable.guild_id, expandable)
 			add_expandable_to_dict(expandable.nxt)  # NOTE: could skip duplication check
 			debug_expand("--new channel created")
 	else:
@@ -124,7 +124,7 @@ async def user_left_expandable_channel(member, before, after, x):
 					# TODO: delete channel and replace with next, if next is not empty
 			else:
 				debug_expand("--channel is not origin")
-				nxt = find_voice_channel(member.guild, x.nxt.current.name)
+				nxt = find_voice_channel(member.guild, x.nxt.name)
 				if len(nxt.members) <= 0:  # if next channel is empty
 					await nxt.delete()
 					guilds[before.channel.guild.id].remove(x.nxt)
@@ -142,7 +142,7 @@ async def user_left_expandable_channel(member, before, after, x):
 					# delete channel and update next
 					await before.channel.delete()
 					await nxt.edit(name=remake_channel_name(nxt.name, x_nxt))
-	print_all_expandables()
+	#print_all_expandables()
 
 def find_voice_channel(guild: discord.guild, name):
 	for x in guild.voice_channels:
@@ -152,10 +152,13 @@ def find_voice_channel(guild: discord.guild, name):
 
 
 def find_expandable_channel(name, guild):
-	for x in guilds[guild.id]:
-		if x.get_name() == name:
-			return x
-	return None
+	try:
+		for x in guilds[guild.id]:
+			if x.get_name() == name:
+				return x
+		return None
+	except:
+		return None
 
 
 # key: guild ID | value: a list of expandable channels
@@ -207,6 +210,19 @@ async def delete_expandable_channel(expandable, real_channel):
 	guilds[expandable.guild_id].remove(expandable)
 	expandable.clear_others()
 	await real_channel.delete()
+
+
+async def load_config():
+	return
+
+def save_config():
+	for g, x in guilds.items():
+		for c in x:
+			config.add_value(g, 'expandable', c.get_name())
+	print('expand.py: saved config')
+
+
+
 
 
 def debug_expand(str):
